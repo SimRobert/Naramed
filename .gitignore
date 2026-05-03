@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# App specific
+saved_reports/
+*.mp3
+*.wav
+*.ogg
+
+# misc
+.env
