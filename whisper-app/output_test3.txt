@@ -1,0 +1,5 @@
+=== Text Original ===
+Aorta la Inel 8, Aorta la Sinusur 12, Aorta Ascendenta 10, AS 13, VD 6, SIV 3, VS 20x12, Perete Posterior 4, Fractie de Ijectie 60%, TAP 13, BAR 6, BAR 6 Valva aortica VMAX 1,2, Valva pulmonară VMAX 1,1, Valva tricuspidiană VMAX 2,5, PSVD 24,5 Arca aortic VMAX 1,3 Alte detalii, dacă ar merge băgat PCA mic, restrictiv cu diametrul de aproximativ un milimetru
+
+=== Text Corectat ===
+Aorta la Inel 8, Aorta la Sinusu 12, Aorta Ascendenta 10, AS 13, VD 6, SIV 3, VS 20x12, Perete Posterior 4, Fracție de Bijecție 60%, TAP 13, BAR 6, BAR 6 Valva aortica VMAX 1,2, Valva pulmonară VMAX 1,1, Valva tricuspida VMAX 2,5, PSVD 24,5 Arca aortic VMAX 1,3 Alte detalii, dacă ar merge băgat PCA mic, restrictiv cu diametrul de aproximativ un milimetru

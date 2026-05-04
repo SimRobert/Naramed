@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <title>Inregistrare audio</title>
+</head>
+<body>
+  <h2>Inregistrare si transcriere</h2>
+
+  <button id="recordBtn">Inregistreaza</button>
+  <br><br>
+
+  <audio id="audioPlayer" controls></audio>
+  <pre id="transcriptOutput">Transcrierea apare aici...</pre>
+
+  <label for="reportName">Nume fisier raport:</label>
+  <input type="text" id="reportName" placeholder="ex: test_maria" />
+  <button id="downloadBtn">Descarca raport</button>
+
+  <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let lastTranscript = null;
+
+    const recordBtn = document.getElementById("recordBtn");
+    const audioPlayer = document.getElementById("audioPlayer");
+    const transcriptOutput = document.getElementById("transcriptOutput");
+
+    recordBtn.onclick = async () => {
+      if (!isRecording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          audioPlayer.src = audioUrl;
+
+          const formData = new FormData();
+          formData.append("file", audioBlob, "audio.webm");
+
+          const response = await fetch("http://localhost:8000/transcribe/", {
+            method: "POST",
+            body: formData
+          });
+
+          const data = await response.json();
+          lastTranscript = data;
+
+          transcriptOutput.textContent = "Transcris: " + data.original + "\n\nCorectat: " + data.corectat;
+
+          audioChunks = [];
+        };
+
+        mediaRecorder.start();
+        recordBtn.textContent = "Opreste";
+        isRecording = true;
+      } else {
+        mediaRecorder.stop();
+        recordBtn.textContent = "Inregistreaza";
+        isRecording = false;
+      }
+    };
+
+    document.getElementById("downloadBtn").onclick = () => {
+      if (!lastTranscript) {
+        alert("Nu ai niciun rezultat generat!");
+        return;
+      }
+
+      const inputName = document.getElementById("reportName").value.trim();
+      const filename = inputName ? `raport_${inputName}.txt` : "raport.txt";
+
+      const textContent = `Transcris:\n${lastTranscript.original}\n\nCorectat:\n${lastTranscript.corectat}`;
+      const blob = new Blob([textContent], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+    };
+  </script>
+</body>
+</html>
