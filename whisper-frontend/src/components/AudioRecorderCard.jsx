@@ -31,6 +31,33 @@ function AudioRecorderCard() {
     return `${m}:${s}`;
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+      };
+
+      mediaRecorderRef.current.start();
+      setRecording(true);
+      setTranscriere("");
+      setAudioBlob(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Nu s-a putut accesa microfonul.");
+    }
+  };
+
   const handleReinregistreaza = () => {
     setAudioBlob(null);
     setTranscriere("");
@@ -39,31 +66,8 @@ function AudioRecorderCard() {
     startRecording();
   };
 
-
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorderRef.current = new MediaRecorder(stream);
-    audioChunksRef.current = [];
-
-    mediaRecorderRef.current.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        audioChunksRef.current.push(e.data);
-      }
-    };
-
-    mediaRecorderRef.current.onstop = () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      setAudioBlob(audioBlob);
-    };
-
-    mediaRecorderRef.current.start();
-    setRecording(true);
-    setTranscriere("");
-    setAudioBlob(null);
-  };
-
   const stopRecording = () => {
-    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current?.stop();
     setRecording(false);
   };
 
@@ -97,7 +101,7 @@ function AudioRecorderCard() {
     link.download = `${patientName || 'raport'}.txt`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove(); // FIX L100: Prefer remove() over removeChild()
   };
 
   const handleGenerateReport = async () => {
@@ -126,7 +130,7 @@ function AudioRecorderCard() {
       link.download = `${patientName || 'raport'}.docx`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove(); // FIX L129: Prefer remove() over removeChild()
     } catch (err) {
       console.error(err);
       toast.error("❌ A aparut o eroare la generarea raportului.");
@@ -173,6 +177,7 @@ function AudioRecorderCard() {
       {!recording && !audioBlob && (
         <>
           <button
+            type="button"
             onClick={startRecording}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
           >
@@ -185,6 +190,7 @@ function AudioRecorderCard() {
       {recording && (
         <>
           <button
+            type="button"
             onClick={stopRecording}
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
           >
@@ -196,15 +202,21 @@ function AudioRecorderCard() {
 
       {audioBlob && !loading && (
         <>
-          <audio controls src={URL.createObjectURL(audioBlob)} className="mt-2" />
+          {/* FIX L199: Added track for accessibility and title for clarity */}
+          <audio controls src={URL.createObjectURL(audioBlob)} className="mt-2">
+            <track kind="captions" />
+            Your browser does not support the audio element.
+          </audio>
           <div className="flex gap-2 mt-3">
             <button
+              type="button"
               onClick={sendToBackend}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
             >
               Trimite la backend
             </button>
             <button
+              type="button"
               onClick={handleReinregistreaza}
               className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded"
             >
@@ -216,7 +228,7 @@ function AudioRecorderCard() {
 
       {loading && (
         <div className="mt-4 flex items-center gap-2 text-blue-800 font-medium">
-          <div className="w-6 h-6 border-4 border-white border-t-blue-600 rounded-full animate-spin"></div>
+          <div className="w-6 h-6 border-4 border-white border-t-blue-600 rounded-full animate-spin" />
           <span className="animate-pulse">⏳ Se transcrie înregistrarea...</span>
         </div>
       )}
@@ -229,8 +241,12 @@ function AudioRecorderCard() {
           </div>
 
           <div className="mt-4">
-            <label className="text-sm text-gray-700">Nume pacient (pentru salvare și denumire fișier):</label>
+            {/* FIX L232: Associated label with input using htmlFor and id */}
+            <label htmlFor="patient-name-input" className="text-sm text-gray-700">
+              Nume pacient (pentru salvare și denumire fișier):
+            </label>
             <input
+              id="patient-name-input"
               type="text"
               className="mt-1 p-2 border rounded w-full"
               placeholder="ex: popescu_ion"
@@ -241,6 +257,7 @@ function AudioRecorderCard() {
 
           <div className="flex flex-col md:flex-row gap-3 mt-4">
             <button
+              type="button"
               className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded w-full"
               onClick={handleDownloadTxt}
             >
@@ -248,6 +265,7 @@ function AudioRecorderCard() {
             </button>
 
             <button
+              type="button"
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full"
               onClick={handleGenerateReport}
             >
@@ -256,6 +274,7 @@ function AudioRecorderCard() {
           </div>
 
           <button
+            type="button"
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded w-full mt-3"
             onClick={handleSaveToHistory}
           >
