@@ -1,28 +1,40 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from typing import Annotated, Any
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+
+import datetime
+import os
 import re
+import shutil
+
 import whisper
 import language_tool_python
-import shutil
-import os
-import datetime
 
 app = FastAPI()
 
-#app.add_middleware(
-#    CORSMiddleware,
-#    allow_origins=["http://localhost:3000"],
-#    allow_credentials=True,
-#    allow_methods=["*"],
-#    allow_headers=["*"],
-#)
+SAVED_REPORTS_DIR = Path("saved_reports")
+REPORT_TITLE = "Raport Ecocardiografic"
+ECHO_DATA_TITLE = "Date ecografice:"
+CONCLUSION_LABEL = "Concluzie"
+THANK_YOU_TEXT = "Multumim ca ati apelat la serviciile noastre!"
+BRAND_BLUE = RGBColor(0x2E, 0x75, 0xB6)
+
+ALLOWED_ORIGINS = ["http://localhost:5173"]
+
+MEDICAL_UNITS = {
+    "FE": "%",
+    "TAP": "",
+}
+
+FormStr = Annotated[str, Form(...)]
+UploadedAudio = Annotated[UploadFile, File(...)]
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,28 +50,41 @@ model = whisper.load_model("medium")
 # Corectare text cu LanguageTool
 tool = language_tool_python.LanguageTool('ro')
 
-@app.delete("/delete_report/")
-def delete_report(patient: str = Form(...), filename: str = Form(...)):
-    file_path = Path("saved_reports") / patient / filename
+@app.delete(
+    "/delete_report/",
+    responses={404: {"description": "Fisierul nu exista"}}
+)
+def delete_report(patient: FormStr, filename: FormStr):
+    file_path = SAVED_REPORTS_DIR / patient / filename
 
-    if file_path.exists():
-        file_path.unlink()  # sterge fisierul
-        return {"success": True, "message": "Fisier sters"}
-    else:
+    if not file_path.exists():
         raise HTTPException(status_code=404, detail="Fisierul nu exista")
-    
-@app.delete("/delete_patient_folder/")
-def delete_patient_folder(patient: str = Form(...)):
-    folder_path = Path("saved_reports") / patient
+
+    file_path.unlink()
+    return {"success": True, "message": "Fisier sters"}
+
+
+@app.delete(
+    "/delete_patient_folder/",
+    responses={
+        404: {"description": "Folderul nu exista"},
+        500: {"description": "Eroare la stergere"}
+    }
+)
+def delete_patient_folder(patient: FormStr):
+    folder_path = SAVED_REPORTS_DIR / patient
+
     if not folder_path.exists():
         raise HTTPException(status_code=404, detail="Folderul nu exista")
 
     try:
         shutil.rmtree(folder_path)
         return {"success": True, "message": "Folder sters complet"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Eroare la stergere: {str(e)}")
-
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Eroare la stergere: {str(exc)}"
+        ) from exc
 
 @app.post("/update_report/")
 async def update_report(
@@ -153,31 +178,24 @@ def download_file(patient: str, filename: str):
     return {"error": "File not found"}
 
 @app.post("/transcribe/")
-async def upload_audio(file: UploadFile = File(...)):
-    file_location = f"temp_{file.filename}"
+async def upload_audio(file: UploadedAudio):
+    file_location = Path(f"temp_{file.filename}")
 
-    # Salveaza fisierul uploadat local
-    with open(file_location, "wb") as buffer:
+    with file_location.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    
-    result = model.transcribe(file_location, language="ro", beam_size=5)
+    try:
+        result = model.transcribe(str(file_location), language="ro", beam_size=5)
+        matches = tool.check(result["text"])
+        corrected_text = language_tool_python.utils.correct(result["text"], matches).strip()
 
-    
-    matches = tool.check(result["text"])
-    corrected_text = language_tool_python.utils.correct(result["text"], matches)
-    #corrected_text = result["text"]
-
-
-    # Sterge fisierul temporar
-    os.remove(file_location)
-    
-    corrected_text = corrected_text.strip()
-
-    return {
-        "original": result["text"],
-        "corectat": corrected_text
-    }
+        return {
+            "original": result["text"],
+            "corectat": corrected_text
+        }
+    finally:
+        if file_location.exists():
+            file_location.unlink()
 
 @app.post("/generate_report/")
 async def generate_report(
