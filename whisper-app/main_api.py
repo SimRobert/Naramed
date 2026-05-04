@@ -1,3 +1,4 @@
+from pydoc import doc
 from typing import Annotated, Any
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -23,7 +24,10 @@ SAVED_REPORTS_DIR = Path("saved_reports")
 REPORT_TITLE = "Raport Ecocardiografic"
 ECHO_DATA_TITLE = "Date ecografice:"
 CONCLUSION_LABEL = "Concluzie"
+CONCLUSION_TITLE = "Concluzie:"
 THANK_YOU_TEXT = "Multumim ca ati apelat la serviciile noastre!"
+LIST_BULLET_STYLE = "List Bullet"
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 BRAND_BLUE = RGBColor(0x2E, 0x75, 0xB6)
 
 ALLOWED_ORIGINS = ["http://localhost:5173"]
@@ -88,9 +92,9 @@ def delete_patient_folder(patient: FormStr):
 
 @app.post("/update_report/")
 async def update_report(
-    patient_name: str = Form(...),
-    report_name: str = Form(...),
-    new_content: str = Form(...)
+    patient_name: FormStr,
+    report_name: FormStr,
+    new_content: FormStr
 ):
     base_dir = "saved_reports"
     patient_dir = os.path.join(base_dir, patient_name)
@@ -108,11 +112,11 @@ async def update_report(
     doc = Document()
 
     # Titlu principal
-    doc.add_heading("Raport Ecocardiografic", 0)
+    doc.add_heading(REPORT_TITLE, 0)
 
     # Subtitlu "Date ecografice"
     p1 = doc.add_paragraph()
-    r1 = p1.add_run("Date ecografice:")
+    r1 = p1.add_run(ECHO_DATA_TITLE)
     r1.bold = True
     r1.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
 
@@ -129,7 +133,7 @@ async def update_report(
     if "Concluzie" in data:
         doc.add_paragraph()
         p2 = doc.add_paragraph()
-        r2 = p2.add_run("Concluzie:")
+        r2 = p2.add_run(CONCLUSION_TITLE)
         r2.bold = True
         r2.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
         doc.add_paragraph(data["Concluzie"]["value"])
@@ -199,8 +203,8 @@ async def upload_audio(file: UploadedAudio):
 
 @app.post("/generate_report/")
 async def generate_report(
-    transcript: str = Form(...),
-    patient_name: str = Form(...)
+    transcript: FormStr,
+    patient_name: FormStr
 ):
     # 1. Parseaza datele medicale
     data = parse_medical_data(transcript)
@@ -230,7 +234,7 @@ async def generate_report(
         if isinstance(value, tuple):
             value = " x ".join(value)
         unit = units.get(label, "mm")
-        doc.add_paragraph(f"{label}: {value} {unit}", style="List Bullet")
+        doc.add_paragraph(f"{label}: {val} mm", style=LIST_BULLET_STYLE)
 
     if "Concluzie" in data:
         doc.add_paragraph()
@@ -244,7 +248,7 @@ async def generate_report(
     doc.add_paragraph()
     p3 = doc.add_paragraph()
     p3.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    r3 = p3.add_run("Multumim ca ati apelat la serviciile noastre!")
+    r3 = p3.add_run(THANK_YOU_TEXT)
     r3.italic = True
     r3.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
 
@@ -252,7 +256,7 @@ async def generate_report(
         doc.save(tmp.name)
         return FileResponse(
             tmp.name,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            media_type=DOCX_MEDIA_TYPE,
             filename=f"{patient_name}.docx"
         )
 
@@ -304,10 +308,10 @@ def parse_medical_data(text: str):
 
 @app.post("/save_report/")
 async def save_report(
-    transcript: str = Form(...),
-    patient_name: str = Form(...)
+    transcript: FormStr,
+    patient_name: FormStr
 ):
-    base_folder = Path("saved_reports") / patient_name
+    base_path = SAVED_REPORTS_DIR / patient_name
 
     if base_folder.exists():
         return JSONResponse(
